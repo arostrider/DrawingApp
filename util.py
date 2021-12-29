@@ -27,3 +27,8 @@ def is_string_matching_format(_string, _format):
     if rex.match(_string):
         return True
     return False
+
+
+def raise_undefined_behaviour(ex, obj_name, *args, **kwargs):
+    """Raises exception to provide better insight on where behaviour should be defined."""
+    raise ex(f"undefined behaviour {obj_name}")
