@@ -4,8 +4,8 @@ import tkinter as tk
 import tkinter.ttk as ttk
 import tkinter.font
 from functools import wraps
-from states import States, MouseStates
 
+from states import States, MouseStates
 from elements import Line, Circle
 
 
@@ -40,7 +40,7 @@ tkinter.Canvas.move_to_specified_coordinates = move_to_specified_coordinates
 
 
 def procedure_step(new_state=None, new_mouse_state=None):
-    """Decorator warp methods that change state variable of MainWindow class instance."""
+    """Decorator wraps methods that change state variable of MainWindow class instance."""
 
     def execute(func):
         @wraps(func)
@@ -55,6 +55,8 @@ def procedure_step(new_state=None, new_mouse_state=None):
             except Exception as ex:
                 # TODO: reduce number of exceptions covered with this block
                 # TODO: how do I want to print error message?
+                if 'cancel' in args:
+                    print('cancel')
                 self.cmd_output_print('Error! Please try again.')
                 print(ex)
 
@@ -63,7 +65,6 @@ def procedure_step(new_state=None, new_mouse_state=None):
     return execute
 
 
-# TODO: handle line moving intuitively for every element type.
 # TODO: implement move by mouse pointer functionality
 
 # TODO: undo and redo functionalities
@@ -74,6 +75,7 @@ def procedure_step(new_state=None, new_mouse_state=None):
 # TODO: setup grid as geometry manager instead of place
 
 # TODO: think of splitting drawing line into two parts (start and end point coordinates input)
+# TODO: fancy dynamic element drawing
 
 
 print("Prerequisite modules imported!")
@@ -100,7 +102,7 @@ class MainWindow:
     def gui_design(self, parent):
         """Window design."""
         self.root = tk.Tk()
-        self.root.geometry('500x570')
+        self.root.geometry('500x570+520+200')
 
         self.root = ttk.Frame(parent)
         self.root.place(x=0, y=0, width=500, height=570)
@@ -147,6 +149,7 @@ class MainWindow:
         self.cmd_input.bind('<Return>', lambda event: self.cmd_enter())
         self.canvas.bind('<Motion>', lambda event: self.mouse_over_canvas(event))
         self.canvas.bind('<Button-1>', lambda event: self.mouse_left_click_canvas(event))
+        self.canvas.bind('<B1-Motion>', lambda event: self.mouse_drag_canvas(event))
 
     def close_window(self):
         """Destroy the window, then kill the program."""
@@ -157,8 +160,16 @@ class MainWindow:
     def cmd_enter(self):
         """Pull the text from the command input textbox, then clear it."""
         cmd_input_text = self.cmd_input.get()
+
+        if cmd_input_text == 'cancel':
+            self.cancel_action_reset_states()
+
         self.do_action(cmd_input_text)
         self.cmd_input.delete(0, tk.END)
+
+    def clear_text_buffer(self):
+        """Utility method: clears text buffer."""
+        self.text_buffer = ""
 
     def set_mouse_coordinates(self, event):
         """Utility method: set instance variables (self.x, self.y) value to mouse pointer current position coordinates."""
@@ -174,17 +185,6 @@ class MainWindow:
         self.canvas.tag_raise(self.canvas_text_mouse_x)
         self.canvas.tag_raise(self.canvas_text_mouse_y)
 
-    # TODO
-    def dynamic_drawing_line(self, event):
-        # TODO
-        self.set_mouse_coordinates(event)
-        start_x, start_y = self.mouse_x, self.mouse_y
-        self.state = States.WAIT_LINE_COORDINATES
-        while self.state == States.WAIT_LINE_COORDINATES:
-            self.set_mouse_coordinates(event)
-            end_x, end_y = self.mouse_x, self.mouse_y
-            self.canvas.create_line(start_x, start_y, end_x, end_y, fill="green", width=5)
-
     def mouse_left_click_canvas(self, event):
         """Event handler: mouse left click on canvas.
         :raise
@@ -196,10 +196,16 @@ class MainWindow:
                                             States.WAIT_CIRCLE_COORDINATES: self.draw_circle_using_mouse_pointer
                                             }
         result = util.switch_dict(self.state, mouse_left_click_procedure_steps,
-                                  default=lambda ex: util.raise_undefined_behaviour(ValueError, "self.mouse_left_click_canvas"))
+                                  default=lambda ex: util.raise_undefined_behaviour(ValueError,
+                                                                                    "self.mouse_left_click_canvas"))
         result(event)
         print(self.mouse_state)
         # return result(event)
+
+    def mouse_drag_canvas(self, event):
+        # TODO: develop element dragging mechanism
+        # print('drag')
+        pass
 
     def draw_element_using_mouse_pointer(self, event, element_drawing_procedure_dict):
         """Mouse drawing procedure handler encapsulation
@@ -207,7 +213,7 @@ class MainWindow:
                     just pass event (it is a tkinter thing)
                 :param element_drawing_procedure_dict
                     Use dictionary as switch data to determine next action according to mouse state instance variable (self.mouse_state)."""
-        self.set_mouse_coordinates(event)
+        # self.set_mouse_coordinates(event)
         result = util.switch_dict(self.mouse_state, element_drawing_procedure_dict)
         return result()
 
@@ -237,17 +243,7 @@ class MainWindow:
     def mouse_click_input_second_coordinate_line(self):
         self.text_buffer += f"{self.mouse_x} {self.mouse_y}"
         self.drawing_line_end(self.text_buffer)
-        self.text_buffer = ""
-
-        # TODO: think if this block should enable dynamic view while drawing using mouse
-        '''
-        start_x, start_y = self.mouse_x, self.mouse_y
-        while self.mouse_state == MouseStates.CLICKED:
-            self.set_mouse_coordinates(event)
-            end_x, end_y = self.mouse_x, self.mouse_y
-            self.canvas.bind('<Motion>',
-                             lambda: self.canvas.create_line(start_x, start_y, end_x, end_y, fill="green", width=5))
-        '''
+        self.clear_text_buffer()
 
     @procedure_step(new_mouse_state=MouseStates.CLEAR)
     def mouse_click_input_second_coordinate_circle(self):
@@ -256,7 +252,7 @@ class MainWindow:
         radius = int(util.calc_length(origin_x, origin_y, circf_x, circf_y))
         self.text_buffer += f"{radius}"
         self.drawing_circle_end(self.text_buffer)
-        self.text_buffer = ""
+        self.clear_text_buffer()
 
     def cmd_output_print(self, message_text):
         """Print message in window command output textbox widget."""
@@ -268,6 +264,9 @@ class MainWindow:
 
     def parse_command(self, cmd_text):
         """Get command input text, parse it, then determine which method to call."""
+        if cmd_text == 'cancel':
+            return
+
         self.cmd_output_print('calling ' + self.input_var.get() + '...')
 
         commands = {'line': self.drawing_line_start,
@@ -275,7 +274,7 @@ class MainWindow:
                     'close': self.close_window,
                     'get selected': self.cmd_output_print_selected,
                     'delete': self.delete_selected_element,
-                    'move': self.move_selected_element_start,
+                    'move': self.move_selected_element_start
                     }
         result = util.switch_dict(cmd_text, commands, default=self.cmd_output_print_error_invalid_command)
         return result()
@@ -293,28 +292,26 @@ class MainWindow:
     @procedure_step(new_state=States.WAIT_LINE_COORDINATES)
     def drawing_line_start(self):
         print('line')
-        self.cmd_output_print('drawing line...')
         self.cmd_output_print('Input coordinates')
         self.cmd_output_print('format: start_x, start_y, end_x, end_y')
 
     @procedure_step(new_state=States.CLEAR)
     def drawing_line_end(self, text):
+        self.cmd_output_print('drawing line...')
         start_x, start_y, end_x, end_y = text.split(" ")
         self.init_new_line(start_x, start_y, end_x, end_y, fill="green", width=4)
-        self.cmd_output_print('line drawn')
 
     @procedure_step(new_state=States.WAIT_CIRCLE_COORDINATES)
     def drawing_circle_start(self):
         print('circle')
-        self.cmd_output_print('drawing circle...')
         self.cmd_output_print('Input coordinates')
         self.cmd_output_print('format: origin_x, origin_y, radius')
 
     @procedure_step(new_state=States.CLEAR)
     def drawing_circle_end(self, text):
+        self.cmd_output_print('drawing circle...')
         origin_x, origin_y, radius = text.split(" ")
         self.init_new_circle(origin_x, origin_y, radius, fill="blue", width=2)
-        self.cmd_output_print('circle drawn')
 
     @procedure_step(new_state=States.WAIT_MOVE_COORDINATES)
     def move_selected_element_start(self):
@@ -327,6 +324,11 @@ class MainWindow:
     def move_selected_element_end(self, text):
         new_x, new_y = text.split(" ")
         self.move_element(self.selected_element, new_x, new_y)
+
+    @procedure_step(new_state=States.CLEAR, new_mouse_state=MouseStates.CLEAR)
+    def cancel_action_reset_states(self):
+        self.clear_text_buffer()
+        self.cmd_output_print("Action cancelled.")
 
     def issue_new_id(self):
         """Increment ID counter, return new ID.
@@ -342,6 +344,7 @@ class MainWindow:
         element_id = self.issue_new_id()
         new_line = Line(element_id, self.canvas, self, start_x, start_y, end_x, end_y, **kwargs)
         self.drawn_elements.append(new_line)
+        self.cmd_output_print(f"Drawn line element with id {element_id}")
         return new_line
 
     def init_new_circle(self, origin_x, origin_y, radius, **kwargs):
@@ -350,6 +353,7 @@ class MainWindow:
         element_id = self.issue_new_id()
         new_circle = Circle(element_id, self.canvas, self, origin_x, origin_y, radius, **kwargs)
         self.drawn_elements.append(new_circle)
+        self.cmd_output_print(f"Drawn circle element with id {element_id}")
         return new_circle
 
     def cmd_output_print_selected(self):
@@ -361,12 +365,14 @@ class MainWindow:
 
     def delete_element(self, element):
         """Delete element master handler.
-                        Remove element object from the list (self.drawn_elements) and delete it from canvas."""
+                        Remove element object from the list (self.drawn_elements), insert placeholder to keep ID mechanics consistent, delete it from canvas."""
         if element not in self.drawn_elements:
             raise ValueError("element not found")
 
         self.drawn_elements.pop(element.id)
+        self.drawn_elements.insert(element.id, None)
         self.canvas.delete(element.image)
+        self.cmd_output_print(f"Deleted element with ID {element.id}")
 
     def delete_selected_element(self):
         """Wraps self.delete_element to delete currently selected element (self.selected_element)."""
@@ -374,6 +380,13 @@ class MainWindow:
 
     def move_element(self, element, new_x, new_y):
         """Move element to specified coordinates."""
+        new_x, new_y = int(new_x), int(new_y)
+
+        if type(element) == Circle:
+            """Handle moving circle so that argument coordinates point to the circle origin."""
+            new_x = new_x - element.radius
+            new_y = new_y - element.radius
+
         self.canvas.move_to_specified_coordinates(element.image, new_x, new_y)
 
 
