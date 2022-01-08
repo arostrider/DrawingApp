@@ -34,7 +34,7 @@ def move_to_specified_coordinates(self, canvas_object, x, y, **kwargs):
     return self.move(canvas_object, move_x, move_y, **kwargs)
 
 
-# adding a method to tkinter library
+# adding methods to tkinter module
 tkinter.Canvas.create_circle = create_circle
 tkinter.Canvas.move_to_specified_coordinates = move_to_specified_coordinates
 
@@ -65,17 +65,19 @@ def procedure_step(new_state=None, new_mouse_state=None):
     return execute
 
 
-# TODO: implement move by mouse pointer functionality
-
+# TODO: rotate element
 # TODO: undo and redo functionalities
 
 # TODO: implement elements (greda, oslonac, sila, zglob...) as classes
 
+# TODO: fancy dynamic element drawing
+
 # TODO: organize widgets among frames
 # TODO: setup grid as geometry manager instead of place
 
-# TODO: think of splitting drawing line into two parts (start and end point coordinates input)
-# TODO: fancy dynamic element drawing
+# TODO: make clicked point fixated to the cursor while moving?
+# TODO: split drawing line into two parts (start and end point coordinates input)?
+# TODO: optimize action flows by implementing mouse release flag?
 
 
 print("Prerequisite modules imported!")
@@ -149,7 +151,6 @@ class MainWindow:
         self.cmd_input.bind('<Return>', lambda event: self.cmd_enter())
         self.canvas.bind('<Motion>', lambda event: self.mouse_over_canvas(event))
         self.canvas.bind('<Button-1>', lambda event: self.mouse_left_click_canvas(event))
-        self.canvas.bind('<B1-Motion>', lambda event: self.mouse_drag_canvas(event))
 
     def close_window(self):
         """Destroy the window, then kill the program."""
@@ -201,11 +202,6 @@ class MainWindow:
         result(event)
         print(self.mouse_state)
         # return result(event)
-
-    def mouse_drag_canvas(self, event):
-        # TODO: develop element dragging mechanism
-        # print('drag')
-        pass
 
     def draw_element_using_mouse_pointer(self, event, element_drawing_procedure_dict):
         """Mouse drawing procedure handler encapsulation
