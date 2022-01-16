@@ -6,7 +6,7 @@ import tkinter.font
 from functools import wraps
 
 from states import States, MouseStates
-from elements import Line, Circle
+from elements import Line, Circle, Greda
 
 
 def create_circle(self, x, y, r, **kwargs):
@@ -270,7 +270,8 @@ class MainWindow:
                     'close': self.close_window,
                     'get selected': self.cmd_output_print_selected,
                     'delete': self.delete_selected_element,
-                    'move': self.move_selected_element_start
+                    'move': self.move_selected_element_start,
+                    'greda': self.drawing_greda_start
                     }
         result = util.switch_dict(cmd_text, commands, default=self.cmd_output_print_error_invalid_command)
         return result()
@@ -280,10 +281,24 @@ class MainWindow:
         states = {States.CLEAR: self.parse_command,
                   States.WAIT_LINE_COORDINATES: self.drawing_line_end,
                   States.WAIT_CIRCLE_COORDINATES: self.drawing_circle_end,
-                  States.WAIT_MOVE_COORDINATES: self.move_selected_element_end
+                  States.WAIT_MOVE_COORDINATES: self.move_selected_element_end,
+                  States.WAIT_GREDA_COORDINATES: self.drawing_greda_end
                   }
         result = util.switch_dict(self.state, states)
         return result(cmd_text)
+
+    @procedure_step(new_state=States.WAIT_GREDA_COORDINATES)
+    def drawing_greda_start(self):
+        print('greda')
+        self.cmd_output_print('Input start coordinates, direction and length')
+        self.cmd_output_print('format: start_x, start_y, length, direction_angle')
+
+    @procedure_step(new_state=States.CLEAR)
+    def drawing_greda_end(self, text):
+        self.cmd_output_print('drawing greda...')
+        start_x, start_y, length, direction = text.split(" ")
+        start_x, start_y, length, direction = int(start_x), int(start_y), int(length), int(direction)
+        self.init_new_greda(start_x, start_y, length, direction, fill="green", width=4)
 
     @procedure_step(new_state=States.WAIT_LINE_COORDINATES)
     def drawing_line_start(self):
@@ -333,6 +348,15 @@ class MainWindow:
         new_id = self.element_id_count + 1
         self.element_id_count += 1
         return new_id
+
+    def init_new_greda(self, start_x, start_y, length, direction, **kwargs):
+        """Greda drawing master handler.
+                # Generate line object with new ID, append it to elements list (self.drawn_elements)."""
+        element_id = self.issue_new_id()
+        new_greda = Greda(element_id, self.canvas, self, start_x, start_y, length, util.radians(direction))
+        self.drawn_elements.append(new_greda)
+        self.cmd_output_print(f"Drawn greda element with id {element_id}")
+        return new_greda
 
     def init_new_line(self, start_x, start_y, end_x, end_y, **kwargs):
         """Line drawing master handler.

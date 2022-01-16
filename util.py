@@ -1,5 +1,5 @@
 import re
-from math import sqrt
+from math import sqrt, cos, sin, radians
 
 
 def calc_length(x0, y0, x1, y1):
@@ -9,6 +9,27 @@ def calc_length(x0, y0, x1, y1):
     :returns sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2)"""
     x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
     return sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2)
+
+
+def calc_vector_end_point(x0, y0, angle, length):
+    x1 = x0 + length*cos(angle)
+    y1 = y0 + length*sin(angle)
+    return x1, y1
+
+
+def rotate_rectangle(points, angle, center):
+    angle = radians(angle)
+    cos_val = cos(angle)
+    sin_val = sin(angle)
+    cx, cy = center
+    new_points = []
+    for x_old, y_old in points:
+        x_old -= cx
+        y_old -= cy
+        x_new = x_old * cos_val - y_old * sin_val
+        y_new = x_old * sin_val + y_old * cos_val
+        new_points.append([x_new + cx, y_new + cy])
+    return new_points
 
 
 def switch_dict(value, _dict, default=None):
