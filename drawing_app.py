@@ -6,7 +6,8 @@ import tkinter.font
 from functools import wraps
 
 from states import States, MouseStates
-from elements import Line, Circle
+from elements import Line, Circle, Greda, Zglob, Sila
+from grid_points_generator import GridPointsGenerator
 
 
 def create_circle(self, x, y, r, **kwargs):
@@ -59,16 +60,60 @@ def procedure_step(new_state=None, new_mouse_state=None):
                     print('cancel')
                 self.cmd_output_print('Error! Please try again.')
                 print(ex)
+                raise ex
 
         return inner
 
     return execute
 
 
-# TODO: rotate element
-# TODO: undo and redo functionalities
+class IDCounter:
+    def __init__(self):
+        self.element_id_count = 0
 
-# TODO: implement elements (greda, oslonac, sila, zglob...) as classes
+    def issue_new_id(self):
+        """Increment ID counter, return new ID.
+        :returns
+                New ID value (self.element_id_count + 1)"""
+        new_id = self.element_id_count + 1
+        self.element_id_count += 1
+        return new_id
+
+
+ID_COUNTER = IDCounter()
+
+
+def init_new():
+    """Decorator wraps methods that are used to create instance of new elements.Element child class."""
+
+    def execute(func):
+        @wraps(func)
+        def inner(self, *args, **kwargs):
+            try:
+                element_id = ID_COUNTER.issue_new_id()
+                new_object = func(self, element_id, *args, **kwargs)
+                self.drawn_elements.append(new_object)
+                # TODO: repace word new with actual object name (greda, sila, etc.)
+                self.cmd_output_print(f"Drawn new element with id {element_id}")
+            except Exception as ex:
+                # TODO: reduce number of exceptions covered with this block
+                # TODO: how do I want to print error message?
+                if 'cancel' in args:
+                    print('cancel')
+                self.cmd_output_print('Error! Please try again.')
+                print(ex)
+                raise ex
+
+        return inner
+
+    return execute
+
+# TODO: undo and redo functionalities
+# TODO: implement greda, zglob and sila drawing using mouse pointer
+
+# TODO: elements drawing must be tied to grid points
+
+# TODO: implement element Oslonac as a class
 
 # TODO: fancy dynamic element drawing
 
@@ -101,6 +146,22 @@ class MainWindow:
         self.gui_design(parent)
         self.bind_keys()
 
+    def canvas_draw_grid(self, step_x=20, step_y=20):
+        self.canvas.update()
+        grid_generator = GridPointsGenerator(height=self.canvas.winfo_height(), width=self.canvas.winfo_width(),
+                                             step_x=step_x, step_y=step_y)
+
+        points_N = grid_generator.generate_N_border_points()
+        points_S = grid_generator.generate_S_border_points()
+        points_E = grid_generator.generate_E_border_points()
+        points_W = grid_generator.generate_W_border_points()
+
+        for p_N, p_S in zip(points_N, points_S):
+            self.canvas.create_line(*p_N, *p_S, width=0.25, fill="grey")
+
+        for p_W, p_E in zip(points_W, points_E):
+            self.canvas.create_line(*p_W, *p_E, width=0.25, fill="grey")
+
     def gui_design(self, parent):
         """Window design."""
         self.root = tk.Tk()
@@ -116,6 +177,9 @@ class MainWindow:
         # mouse coordinates as text on canvas
         self.canvas_text_mouse_x = self.canvas.create_text(400, 355, text=f"X: {self.mouse_x}", anchor=tk.W)
         self.canvas_text_mouse_y = self.canvas.create_text(440, 355, text=f"Y: {self.mouse_y}", anchor=tk.W)
+
+        # draw on canvas
+        self.canvas_draw_grid()
 
         # output text box
         self.cmd_output = tk.Text(self.root, bg="#000000", fg="#ffffff",
@@ -231,6 +295,34 @@ class MainWindow:
                                   }
         self.draw_element_using_mouse_pointer(event, circle_procedure_steps)
 
+    # TODO: implement greda, zglob and sila drawing using mouse pointer
+    def draw_greda_using_mouse_pointer(self, event):
+        """Draw greda using mouse procedure handler
+                :param event
+                    just pass event (it is a tkinter thing)"""
+        greda_procedure_steps = {MouseStates.CLEAR: self.mouse_click_input_first_coordinate,
+                                 MouseStates.CLICKED: self.mouse_click_input_second_coordinate_greda
+                                 }
+        self.draw_element_using_mouse_pointer(event, greda_procedure_steps)
+
+    def draw_zglob_using_mouse_pointer(self, event):
+        """Draw zglob using mouse procedure handler
+                :param event
+                    just pass event (it is a tkinter thing)"""
+        zglob_procedure_steps = {MouseStates.CLEAR: self.mouse_click_input_first_coordinate,
+                                 MouseStates.CLICKED: self.mouse_click_input_second_coordinate_zglob
+                                 }
+        self.draw_element_using_mouse_pointer(event, zglob_procedure_steps)
+
+    def draw_sila_using_mouse_pointer(self, event):
+        """Draw greda using mouse procedure handler
+                :param event
+                    just pass event (it is a tkinter thing)"""
+        sila_procedure_steps = {MouseStates.CLEAR: self.mouse_click_input_first_coordinate,
+                                MouseStates.CLICKED: self.mouse_click_input_second_coordinate_sila
+                                }
+        self.draw_element_using_mouse_pointer(event, sila_procedure_steps)
+
     @procedure_step(new_mouse_state=MouseStates.CLICKED)
     def mouse_click_input_first_coordinate(self):
         self.text_buffer += f"{self.mouse_x} {self.mouse_y} "
@@ -270,7 +362,10 @@ class MainWindow:
                     'close': self.close_window,
                     'get selected': self.cmd_output_print_selected,
                     'delete': self.delete_selected_element,
-                    'move': self.move_selected_element_start
+                    'move': self.move_selected_element_start,
+                    'greda': self.drawing_greda_start,
+                    'zglob': self.drawing_zglob_start,
+                    'sila': self.drawing_sila_start
                     }
         result = util.switch_dict(cmd_text, commands, default=self.cmd_output_print_error_invalid_command)
         return result()
@@ -280,10 +375,37 @@ class MainWindow:
         states = {States.CLEAR: self.parse_command,
                   States.WAIT_LINE_COORDINATES: self.drawing_line_end,
                   States.WAIT_CIRCLE_COORDINATES: self.drawing_circle_end,
-                  States.WAIT_MOVE_COORDINATES: self.move_selected_element_end
+                  States.WAIT_MOVE_COORDINATES: self.move_selected_element_end,
+                  States.WAIT_GREDA_COORDINATES: self.drawing_greda_end,
+                  States.WAIT_ZGLOB_COORDINATES: self.drawing_zglob_end,
+                  States.WAIT_SILA_COORDINATES: self.drawing_sila_end
                   }
         result = util.switch_dict(self.state, states)
         return result(cmd_text)
+
+    @procedure_step(new_state=States.WAIT_GREDA_COORDINATES)
+    def drawing_greda_start(self):
+        print('greda')
+        self.cmd_output_print('Input start coordinates, direction and length')
+        self.cmd_output_print('format: start_x, start_y, direction_angle, length')
+
+    @procedure_step(new_state=States.CLEAR)
+    def drawing_greda_end(self, text):
+        self.cmd_output_print('drawing greda...')
+        start_x, start_y, length, direction = (int(i) for i in text.split(" "))
+        self.init_new_greda(start_x, start_y, length, direction)
+
+    @procedure_step(new_state=States.WAIT_SILA_COORDINATES)
+    def drawing_sila_start(self):
+        print('sila')
+        self.cmd_output_print('Input start coordinates, direction and length')
+        self.cmd_output_print('format: attack_x, attack_y, attack_angle, intensity')
+
+    @procedure_step(new_state=States.CLEAR)
+    def drawing_sila_end(self, text):
+        self.cmd_output_print('drawing sila...')
+        attack_x, attack_y, attack_angle, intensity = (int(i) for i in text.split(" "))
+        self.init_new_sila(attack_x, attack_y, attack_angle, intensity)
 
     @procedure_step(new_state=States.WAIT_LINE_COORDINATES)
     def drawing_line_start(self):
@@ -309,6 +431,18 @@ class MainWindow:
         origin_x, origin_y, radius = text.split(" ")
         self.init_new_circle(origin_x, origin_y, radius, fill="blue", width=2)
 
+    @procedure_step(new_state=States.WAIT_ZGLOB_COORDINATES)
+    def drawing_zglob_start(self):
+        print('zglob')
+        self.cmd_output_print('Input coordinates')
+        self.cmd_output_print('format: origin_x, origin_y')
+
+    @procedure_step(new_state=States.CLEAR)
+    def drawing_zglob_end(self, text):
+        self.cmd_output_print('drawing zglob...')
+        origin_x, origin_y = text.split(" ")
+        self.init_new_zglob(origin_x, origin_y)
+
     @procedure_step(new_state=States.WAIT_MOVE_COORDINATES)
     def move_selected_element_start(self):
         print('move')
@@ -326,6 +460,19 @@ class MainWindow:
         self.clear_text_buffer()
         self.cmd_output_print("Action cancelled.")
 
+    @init_new()
+    def init_new_greda(self, element_id, start_x, start_y, length, direction):
+        return Greda(element_id, self.canvas, self, start_x, start_y, length, direction)
+
+    @init_new()
+    def init_new_zglob(self, element_id, origin_x, origin_y):
+        return Zglob(element_id, self.canvas, self, origin_x, origin_y)
+
+    @init_new()
+    def init_new_sila(self, element_id, attack_x, attack_y, attack_angle, intensity):
+        return Sila(element_id, self.canvas, self, attack_x, attack_y, attack_angle, intensity)
+
+    # TODO: issue_new_id and init_new functions below are redundant, but please check when removing
     def issue_new_id(self):
         """Increment ID counter, return new ID.
         :returns
@@ -378,8 +525,8 @@ class MainWindow:
         """Move element to specified coordinates."""
         new_x, new_y = int(new_x), int(new_y)
 
-        if type(element) == Circle:
-            """Handle moving circle so that argument coordinates point to the circle origin."""
+        if type(element) == Circle or type(element) == Zglob:
+            """Handle moving circle and zglob so that argument coordinates point to the circle origin."""
             new_x = new_x - element.radius
             new_y = new_y - element.radius
 
