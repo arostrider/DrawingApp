@@ -1,5 +1,5 @@
 import re
-from math import sqrt, cos, sin, radians
+from math import sqrt, cos, sin, radians, degrees, pi, atan
 
 
 def calc_length(x0, y0, x1, y1):
@@ -16,6 +16,35 @@ def calc_vector_end_point(x0, y0, angle, length):
     x1 = x0 + length*cos(angle)
     y1 = y0 + length*sin(angle)
     return x1, y1
+
+
+def calc_angle_between_line_and_positive_x_axis(x0, y0, x1, y1):
+    try:
+        angle = atan((y1 - y0)/(x1 - x0))
+    except ZeroDivisionError:
+        if y0 > y1:
+            y_dir = -1
+        elif y0 < y1:
+            y_dir = 1
+        elif y0 == y1 and x0 == x1:
+            raise ValueError("Points overlap")
+
+        return y_dir * pi/2
+
+    if x0 > x1:
+        return angle - radians(180)
+    if x0 < x1:
+        return angle
+
+
+def round_angle_to_nearest_eighth(angle):
+    return (((round((angle / pi) / 0.25)) / 8) * (2 * pi)) % (2 * pi)
+
+
+def calc_angle_between_line_and_positive_x_axis_and_round_to_nearest_eighth(x0, y0, x1, y1):
+    angle = calc_angle_between_line_and_positive_x_axis(x0, y0, x1, y1)
+    angle = round_angle_to_nearest_eighth(angle)
+    return angle
 
 
 def rotate_rectangle(point_coords, angle, rotation_point):

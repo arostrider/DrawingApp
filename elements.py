@@ -1,8 +1,7 @@
-import tkinter
-
 from states import States
 import util
 import tkinter as tk
+
 
 class Element:
 
@@ -81,7 +80,6 @@ class Sila(Element):
     def __init__(self, _id, canvas, parent, attack_x, attack_y, attack_angle, intensity):
         Element.__init__(self, _id, canvas, parent, attack_x, attack_y)
         self.start_x, self.start_y = attack_x, attack_y
-        attack_angle = attack_angle - 180
         self.end_x, self.end_y = util.calc_vector_end_point(self.start_x, self.start_y, attack_angle, intensity)
 
         self.image = self.canvas.create_line(self.start_x, self.start_y, self.end_x, self.end_y,

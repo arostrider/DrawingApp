@@ -35,6 +35,18 @@ class GridPointsGenerator:
         for x in range(0, self.width, self.step_x):
             yield x, y
 
+    def find_closest_grid_point(self, point: tuple[int, int]):
+        print(f'funkcija prima: {point}')
+        closest_x = round(int(point[self.X]) / self.step_x)
+        closest_y = round(int(point[self.Y]) / self.step_y)
+        print(f'funkcija kaze: {closest_x, closest_y}')
+        return closest_x, closest_y
+
+    def convert_grid_point_to_pixel_coordinated_point(self, point: tuple[int, int]):
+        grid_x, grid_y = int(point[self.X]), int(point[self.Y])
+        print(f'a funkcija kaze: {grid_x * self.step_x}, {grid_y * self.step_y}')
+        return grid_x * self.step_x, grid_y * self.step_y
+
 
 if __name__ == '__main__':
     grid = GridPointsGenerator(100, 100, 0.5, 0.5)

@@ -1,5 +1,6 @@
 import sys
 import util
+import pprint
 import tkinter as tk
 import tkinter.ttk as ttk
 import tkinter.font
@@ -129,6 +130,8 @@ print("Prerequisite modules imported!")
 
 
 class MainWindow:
+    GRID_STEP_X, GRID_STEP_Y = 20, 20
+
     def __init__(self, parent):
         """When the class is instanced, initialize instance variables holding information about:
         mouse coordinates, buffers, state machines.
@@ -146,10 +149,19 @@ class MainWindow:
         self.gui_design(parent)
         self.bind_keys()
 
-    def canvas_draw_grid(self, step_x=20, step_y=20):
+        self.grid_generator = self.init_grid_points_generator_object()
+
+        self.canvas_grid_points = list(self.grid_generator())
+
+        pprint.pp(self.canvas_grid_points)
+
+    def init_grid_points_generator_object(self):
+        return GridPointsGenerator(height=self.canvas.winfo_height(), width=self.canvas.winfo_width(),
+                                   step_x=self.GRID_STEP_X, step_y=self.GRID_STEP_Y)
+
+    def canvas_draw_grid(self):
         self.canvas.update()
-        grid_generator = GridPointsGenerator(height=self.canvas.winfo_height(), width=self.canvas.winfo_width(),
-                                             step_x=step_x, step_y=step_y)
+        grid_generator = self.init_grid_points_generator_object()
 
         points_N = grid_generator.generate_N_border_points()
         points_S = grid_generator.generate_S_border_points()
@@ -240,25 +252,31 @@ class MainWindow:
         """Utility method: set instance variables (self.x, self.y) value to mouse pointer current position coordinates."""
         self.mouse_x, self.mouse_y = event.x, event.y
 
-    def mouse_over_canvas(self, event):
-        """Change the text on canvas to reflect mouse pointer current position coordinates."""
-        # TODO: find way to adapt text color to its lower layer color
-        self.set_mouse_coordinates(event)
-
         self.canvas.itemconfigure(self.canvas_text_mouse_x, text=f"X: {self.mouse_x}")
         self.canvas.itemconfigure(self.canvas_text_mouse_y, text=f"Y: {self.mouse_y}")
         self.canvas.tag_raise(self.canvas_text_mouse_x)
         self.canvas.tag_raise(self.canvas_text_mouse_y)
 
+    def mouse_over_canvas(self, event):
+        """Change the text on canvas to reflect mouse pointer current position coordinates."""
+        # TODO: find way to adapt text color to its lower layer color
+        self.set_mouse_coordinates(event)
+
     def mouse_left_click_canvas(self, event):
         """Event handler: mouse left click on canvas.
         :raise
             ValueError if current self.state value is not in mouse_left_click_procedure_steps.keys()."""
+        self.set_mouse_coordinates(event)
+        closest_point = self.grid_generator.find_closest_grid_point((self.mouse_x, self.mouse_y))
+        print(f'Closest point is: grid{closest_point}, '
+              f'pixels{self.grid_generator.convert_grid_point_to_pixel_coordinated_point(closest_point)}')
+
         if self.state == States.CLEAR:
             return
 
         mouse_left_click_procedure_steps = {States.WAIT_LINE_COORDINATES: self.draw_line_using_mouse_pointer,
-                                            States.WAIT_CIRCLE_COORDINATES: self.draw_circle_using_mouse_pointer
+                                            States.WAIT_CIRCLE_COORDINATES: self.draw_circle_using_mouse_pointer,
+                                            States.WAIT_GREDA_COORDINATES: self.draw_greda_using_mouse_pointer
                                             }
         result = util.switch_dict(self.state, mouse_left_click_procedure_steps,
                                   default=lambda ex: util.raise_undefined_behaviour(ValueError,
@@ -342,6 +360,23 @@ class MainWindow:
         self.drawing_circle_end(self.text_buffer)
         self.clear_text_buffer()
 
+    @procedure_step(new_mouse_state=MouseStates.CLEAR)
+    def mouse_click_input_second_coordinate_greda(self):
+        self.text_buffer += f"{self.mouse_x} {self.mouse_y}"
+        coords = list(map(int, self.text_buffer.split(" ")))
+        angle = round(
+            util.degrees(
+                util.calc_angle_between_line_and_positive_x_axis_and_round_to_nearest_eighth(*coords)
+            )
+        )
+        print(f'Ugao: {angle}')
+        length = round(util.calc_length(*coords))
+        print(f'Duzina: {length}')
+        start_x, start_y = coords[0:2]
+        buffer = f"{start_x} {start_y} {angle} {length}"
+        self.drawing_greda_end(buffer)
+        self.clear_text_buffer()
+
     def cmd_output_print(self, message_text):
         """Print message in window command output textbox widget."""
         self.cmd_output.insert(tk.END, message_text + '\n')
@@ -392,7 +427,12 @@ class MainWindow:
     @procedure_step(new_state=States.CLEAR)
     def drawing_greda_end(self, text):
         self.cmd_output_print('drawing greda...')
-        start_x, start_y, length, direction = (int(i) for i in text.split(" "))
+        start_x, start_y, direction, length = list(map(int, text.split(" ")))
+        direction = round(
+            util.degrees(
+                util.round_angle_to_nearest_eighth(util.radians(direction))
+            )
+        )
         self.init_new_greda(start_x, start_y, length, direction)
 
     @procedure_step(new_state=States.WAIT_SILA_COORDINATES)
@@ -404,7 +444,12 @@ class MainWindow:
     @procedure_step(new_state=States.CLEAR)
     def drawing_sila_end(self, text):
         self.cmd_output_print('drawing sila...')
-        attack_x, attack_y, attack_angle, intensity = (int(i) for i in text.split(" "))
+        attack_x, attack_y, attack_angle, intensity = list(map(int, text.split(" ")))
+        attack_angle = round(
+            util.degrees(
+                util.round_angle_to_nearest_eighth(util.radians(attack_angle))
+            )
+        )
         self.init_new_sila(attack_x, attack_y, attack_angle, intensity)
 
     @procedure_step(new_state=States.WAIT_LINE_COORDINATES)
@@ -439,9 +484,16 @@ class MainWindow:
 
     @procedure_step(new_state=States.CLEAR)
     def drawing_zglob_end(self, text):
+        # TODO: implement other draw_element_end functions like this
+        #       calculate_closest_canvas_pixel_coordinated_grid_point(x, y) -> int, int
         self.cmd_output_print('drawing zglob...')
         origin_x, origin_y = text.split(" ")
-        self.init_new_zglob(origin_x, origin_y)
+        grid_x, grid_y = self.grid_generator.find_closest_grid_point((origin_x, origin_y))
+        grid_origin_x, grid_origin_y = self.grid_generator.convert_grid_point_to_pixel_coordinated_point((grid_x, grid_y))
+
+        print(grid_origin_x)
+        print(grid_origin_y)
+        self.init_new_zglob(grid_origin_x, grid_origin_y)
 
     @procedure_step(new_state=States.WAIT_MOVE_COORDINATES)
     def move_selected_element_start(self):
@@ -461,7 +513,7 @@ class MainWindow:
         self.cmd_output_print("Action cancelled.")
 
     @init_new()
-    def init_new_greda(self, element_id, start_x, start_y, length, direction):
+    def init_new_greda(self, element_id, start_x, start_y, direction, length):
         return Greda(element_id, self.canvas, self, start_x, start_y, length, direction)
 
     @init_new()
